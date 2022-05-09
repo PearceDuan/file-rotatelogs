@@ -5,6 +5,7 @@
 package rotatelogs
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/lestrrat-go/file-rotatelogs/internal/fileutil"
@@ -44,6 +46,7 @@ func New(p string, options ...Option) (*RotateLogs, error) {
 	var maxAge time.Duration
 	var handler Handler
 	var forceNewFile bool
+	var compress bool
 
 	for _, o := range options {
 		switch o.Name() {
@@ -72,6 +75,8 @@ func New(p string, options ...Option) (*RotateLogs, error) {
 			handler = o.Value().(Handler)
 		case optkeyForceNewFile:
 			forceNewFile = true
+		case optkeyCompress:
+			compress = o.Value().(bool)
 		}
 	}
 
@@ -95,6 +100,7 @@ func New(p string, options ...Option) (*RotateLogs, error) {
 		rotationSize:  rotationSize,
 		rotationCount: rotationCount,
 		forceNewFile:  forceNewFile,
+		compress:      compress,
 	}, nil
 }
 
@@ -318,6 +324,7 @@ func (rl *RotateLogs) rotateNolock(filename string) error {
 
 	// the linter tells me to pre allocate this...
 	toUnlink := make([]string, 0, len(matches))
+	compresses := make([]string, 0, len(matches))
 	for _, path := range matches {
 		// Ignore lock files
 		if strings.HasSuffix(path, "_lock") || strings.HasSuffix(path, "_symlink") {
@@ -335,6 +342,12 @@ func (rl *RotateLogs) rotateNolock(filename string) error {
 		}
 
 		if rl.maxAge > 0 && fi.ModTime().After(cutoff) {
+			if rl.compress {
+				// put un-expire(except: current|already compressed) to slice
+				if path != filename && !isAlreadyCompressed(path) {
+					compresses = append(compresses, path)
+				}
+			}
 			continue
 		}
 
@@ -353,7 +366,7 @@ func (rl *RotateLogs) rotateNolock(filename string) error {
 		toUnlink = toUnlink[:len(toUnlink)-int(rl.rotationCount)]
 	}
 
-	if len(toUnlink) <= 0 {
+	if len(toUnlink) <= 0 && len(compresses) <= 0 {
 		return nil
 	}
 
@@ -365,7 +378,21 @@ func (rl *RotateLogs) rotateNolock(filename string) error {
 		}
 	}()
 
+	if rl.compress {
+		go func() {
+			for _, path := range compresses {
+				// compress and remove origin file
+				if err := compressLogFile(path, path+".gz"); err != nil {
+					// todo ignore error
+				}
+			}
+		}()
+	}
 	return nil
+}
+
+func isAlreadyCompressed(filename string) bool {
+	return strings.HasSuffix(filename, ".gz")
 }
 
 // Close satisfies the io.Closer interface. You must
@@ -383,4 +410,68 @@ func (rl *RotateLogs) Close() error {
 	rl.outFh = nil
 
 	return nil
+}
+
+// compressLogFile compresses the given log file, removing the
+// uncompressed log file if successful.
+func compressLogFile(src, dst string) (err error) {
+	f, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open log file: %v", err)
+	}
+	defer f.Close()
+
+	fi, err := os.Stat(src)
+	if err != nil {
+		return fmt.Errorf("failed to stat log file: %v", err)
+	}
+
+	if err := chown(dst, fi); err != nil {
+		return fmt.Errorf("failed to chown compressed log file: %v", err)
+	}
+
+	// If this file already exists, we presume it was created by
+	// a previous attempt to compress the log file.
+	gzf, err := os.OpenFile(dst, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, fi.Mode())
+	if err != nil {
+		return fmt.Errorf("failed to open compressed log file: %v", err)
+	}
+	defer gzf.Close()
+
+	gz := gzip.NewWriter(gzf)
+
+	defer func() {
+		if err != nil {
+			os.Remove(dst)
+			err = fmt.Errorf("failed to compress log file: %v", err)
+		}
+	}()
+
+	if _, err := io.Copy(gz, f); err != nil {
+		return err
+	}
+	if err := gz.Close(); err != nil {
+		return err
+	}
+	if err := gzf.Close(); err != nil {
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		return err
+	}
+	if err := os.Remove(src); err != nil {
+		return err
+	}
+	return nil
+}
+
+func chown(name string, info os.FileInfo) error {
+	f, err := os.OpenFile(name, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+	if err != nil {
+		return err
+	}
+	f.Close()
+	stat := info.Sys().(*syscall.Stat_t)
+	return os.Chown(name, int(stat.Uid), int(stat.Gid))
 }
