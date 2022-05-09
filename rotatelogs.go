@@ -7,6 +7,9 @@ package rotatelogs
 import (
 	"compress/gzip"
 	"fmt"
+	"github.com/PearceDuan/file-rotatelogs/internal/fileutil"
+	strftime "github.com/lestrrat-go/strftime"
+	"github.com/pkg/errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -15,10 +18,6 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/lestrrat-go/file-rotatelogs/internal/fileutil"
-	strftime "github.com/lestrrat-go/strftime"
-	"github.com/pkg/errors"
 )
 
 func (c clockFn) Now() time.Time {

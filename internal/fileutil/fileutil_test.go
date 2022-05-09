@@ -2,13 +2,12 @@ package fileutil_test
 
 import (
 	"fmt"
-	"testing"
-	"time"
-
+	"github.com/PearceDuan/file-rotatelogs/internal/fileutil"
 	"github.com/jonboulle/clockwork"
-	"github.com/lestrrat-go/file-rotatelogs/internal/fileutil"
 	"github.com/lestrrat-go/strftime"
 	"github.com/stretchr/testify/assert"
+	"testing"
+	"time"
 )
 
 func TestGenerateFn(t *testing.T) {

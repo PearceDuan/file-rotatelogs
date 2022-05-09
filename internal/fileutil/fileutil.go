@@ -1,12 +1,11 @@
 package fileutil
 
 import (
+	"github.com/lestrrat-go/strftime"
+	"github.com/pkg/errors"
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/lestrrat-go/strftime"
-	"github.com/pkg/errors"
 )
 
 // GenerateFn creates a file name based on the pattern, the current time, and the

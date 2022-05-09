@@ -1,9 +1,8 @@
 package rotatelogs
 
 import (
+	"github.com/PearceDuan/file-rotatelogs/internal/option"
 	"time"
-
-	"github.com/lestrrat-go/file-rotatelogs/internal/option"
 )
 
 const (

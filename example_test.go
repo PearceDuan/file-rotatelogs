@@ -2,10 +2,9 @@ package rotatelogs_test
 
 import (
 	"fmt"
+	rotatelogs "github.com/PearceDuan/file-rotatelogs"
 	"io/ioutil"
 	"os"
-
-	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
 )
 
 func ExampleForceNewFile() {

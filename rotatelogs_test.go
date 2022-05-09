@@ -2,6 +2,10 @@ package rotatelogs_test
 
 import (
 	"fmt"
+	rotatelogs "github.com/PearceDuan/file-rotatelogs"
+	"github.com/jonboulle/clockwork"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"io"
 	"io/ioutil"
 	"log"
@@ -10,11 +14,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/jonboulle/clockwork"
-	rotatelogs "github.com/lestrrat-go/file-rotatelogs"
-	"github.com/pkg/errors"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSatisfiesIOWriter(t *testing.T) {

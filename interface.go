@@ -1,11 +1,10 @@
 package rotatelogs
 
 import (
+	strftime "github.com/lestrrat-go/strftime"
 	"os"
 	"sync"
 	"time"
-
-	strftime "github.com/lestrrat-go/strftime"
 )
 
 type Handler interface {
